@@ -52,11 +52,13 @@ namespace FuralityGridNode
             public string RigType;
             public string MidiDevice;
             public bool Is1440pModeOn;
+            public bool ExpandScreenshotsTo16By9;
         }
 
         public void SaveSettings()
         {
             FuralityGridNodeSettings settings = new FuralityGridNodeSettings();
+            settings.ExpandScreenshotsTo16By9 = expandScreenshotTo16by9.Checked;
             settings.ArtNetAddress = ipInput.Text;
             settings.ArtNetPort = portInput.Text;
             settings.Unicast = unicast.Checked;
@@ -76,6 +78,7 @@ namespace FuralityGridNode
             rigTypeDropdown.SelectedItem = settings.RigType == null ? "VRSL" : settings.RigType;
             midiSavedDevice = settings.MidiDevice;
             res1440p.Checked = settings.Is1440pModeOn;
+            expandScreenshotTo16by9.Checked = settings.ExpandScreenshotsTo16By9;
         }
 
         public Form1()
@@ -1099,7 +1102,12 @@ namespace FuralityGridNode
             int outputSizeX = bladeSizeX * outputScale;
             int outputSizeY = bladeSizeY * outputScale;
 
-            Bitmap image = new Bitmap(outputSizeX, outputSizeY, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            int fileSizeY = outputSizeY;
+            if(expandScreenshotTo16by9.Checked) {
+              fileSizeY = (outputSizeX / 16) * 9;
+            }
+
+            Bitmap image = new Bitmap(outputSizeX, fileSizeY, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
             GCHandle pinnedArray = GCHandle.Alloc(preview, GCHandleType.Pinned);
             IntPtr pointer = pinnedArray.AddrOfPinnedObject();
