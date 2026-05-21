@@ -1180,5 +1180,10 @@ namespace FuralityGridNode
         {
 
         }
+
+        private void button2_Click_1(object sender, EventArgs e)
+        {
+            artnetClient.combinedData = new byte[512 * ArtNet.maxUniverses];
+        }
     }
 }
