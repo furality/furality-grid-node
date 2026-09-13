@@ -10,12 +10,25 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace FuralityGridNode
 {
     public partial class Form1 : Form
     {
+        const uint WM_CHAR = 0x0102;
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+        [DllImport("user32.dll")]
+        static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+        delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
         static int bladeSizeX = 120;
         static int bladeSizeY = 13;
 
@@ -36,6 +49,11 @@ namespace FuralityGridNode
         private string midiSavedDevice = "";
         private int maxMidiChannels = 4096;
         private int bankStatus = 0;
+
+        private int wmcharPosition = 0;
+        private int wmcharPerUpdate = 1024;
+        private int wmcharMax = 2024;
+        private long wmcharUpdate = 0;
 
         private FileStream logStream;
 
@@ -501,6 +519,44 @@ namespace FuralityGridNode
             else
             {
                 return;
+            }
+
+            if (wmcharUpdate < DateTimeOffset.Now.ToUnixTimeMilliseconds() - 33)
+            {
+                wmcharUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+                IntPtr hwnd = FindWindow(null, "VRChat");
+
+                if (hwnd != IntPtr.Zero)
+                {
+                    const char startMessage = '\uFFFD';
+                    const char endMessage = '\uFFFF';
+
+                    int sendBytes = wmcharPerUpdate;
+
+                    if (wmcharPosition > wmcharMax)
+                    {
+                        wmcharPosition = 0;
+                    }
+
+                    if (wmcharPerUpdate + wmcharPosition > wmcharMax)
+                    {
+                        sendBytes = wmcharPerUpdate + wmcharPosition - wmcharMax;
+                    }
+
+                    PostMessage(hwnd, WM_CHAR, (IntPtr)startMessage, IntPtr.Zero);
+                    PostMessage(hwnd, WM_CHAR, (IntPtr)(1024 + wmcharPosition), IntPtr.Zero); //start index
+                    PostMessage(hwnd, WM_CHAR, (IntPtr)(1024 + sendBytes), IntPtr.Zero); //buffer size
+
+                    for (int t = 0; t < sendBytes; t++)
+                    {
+                        PostMessage(hwnd, WM_CHAR, (IntPtr)(combinedData[t+wmcharPosition] + 1024), IntPtr.Zero);
+                    }
+
+                    PostMessage(hwnd, WM_CHAR, (IntPtr)endMessage, IntPtr.Zero);
+
+                    wmcharPosition += wmcharPerUpdate;
+                }
             }
 
             if (midiOutput != null)
