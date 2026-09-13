@@ -51,11 +51,12 @@ namespace FuralityGridNode
         private int bankStatus = 0;
 
         private int wmcharPosition = 0;
-        private int wmcharPerUpdate = 1024;
-        private int wmcharMax = 2024;
+        private int wmcharPerUpdate = 100;
+        private int wmcharMax = 2879;
         private long wmcharUpdate = 0;
 
         private FileStream logStream;
+        private FileStream logStreamChar;
 
         private OutputDevice midiOutput;
 
@@ -521,7 +522,7 @@ namespace FuralityGridNode
                 return;
             }
 
-            if (wmcharUpdate < DateTimeOffset.Now.ToUnixTimeMilliseconds() - 33)
+            if (isCharReady() || wmcharUpdate < DateTimeOffset.Now.ToUnixTimeMilliseconds() - 1000)
             {
                 wmcharUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
@@ -1055,6 +1056,41 @@ namespace FuralityGridNode
             //logStream.ReadTimeout = 10;
         }
 
+        private void findVRCLogChar()
+        {
+            if (logStreamChar != null)
+            {
+                logStreamChar.Close();
+                logStreamChar = null;
+            }
+
+            string path = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+            string log = "";
+            if (editorCheck.Checked)
+            {
+                log = path + "\\..\\Local\\Unity\\Editor\\Editor.log";
+            }
+            else
+            {
+                string[] logs = Directory.GetFiles(path + "\\..\\LocalLow\\VRChat\\VRChat", "output_log_*.txt", SearchOption.TopDirectoryOnly);
+                if (logs.Length == 0) return;
+
+                Array.Sort(logs);
+                log = logs[logs.Length - 1];
+            }
+
+            logStreamChar = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+            //forward to the end to wait on it
+            if (logStreamChar.Length != 0)
+            {
+                logStreamChar.Position = logStreamChar.Length - 1;
+            }
+
+            //logStreamChar.ReadTimeout = 10;
+        }
+
         private bool isMidiReady()
         {
             if (logStream == null)
@@ -1084,6 +1120,44 @@ namespace FuralityGridNode
                     }
                 }
             } else
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private bool isCharReady()
+        {
+            if (logStreamChar == null)
+            {
+                findVRCLogChar();
+                return false;
+            }
+
+            int length = (int)(logStreamChar.Length - logStreamChar.Position);
+
+            byte[] searchWord = { (byte)'M', (byte)'I', (byte)'D', (byte)'I', (byte)'D', (byte)'M', (byte)'X', (byte)':', (byte)'C', (byte)'H', (byte)'A', (byte)'R', (byte)'R', (byte)'E', (byte)'A', (byte)'D', (byte)'Y' };
+
+            if (length > 1)
+            {
+                int c;
+                int i = 0;
+                while ((c = logStreamChar.ReadByte()) != -1)
+                {
+                    if (c == searchWord[i])
+                    {
+                        i++;
+
+                        if (i >= searchWord.Length)
+                        {
+                            logStreamChar.Position = logStreamChar.Length - 1;
+                            return true;
+                        }
+                    }
+                }
+            }
+            else
             {
                 return false;
             }
